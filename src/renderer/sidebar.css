@@ -166,6 +166,17 @@
   border-bottom: 1px solid var(--obw-line);
 }
 
+/* --- Workspace board -------------------------------------------------------------------- */
+
+/* An edge around each worktree card on the board, in the boxes' color. An outline, not a
+   border: it takes no room (the board's virtualizer measures the cards), follows the card's
+   rounded corners, and leaves alone the box-shadow ring Orca draws on selected cards. The
+   board keeps 8px between cards, so neighbouring edges never touch. */
+[data-workspace-board-card-id] {
+  outline: 1px solid var(--obw-box);
+  outline-offset: -1px;
+}
+
 /* --- Status chip ------------------------------------------------------------------------ */
 
 [data-obw-status]::after {
