@@ -1,0 +1,216 @@
+/* Injected into Orca's window by orca-better-worktrees. Every rule keys off attributes and
+   variables the renderer script sets (data-obw-*, --obw-*), so nothing changes until the script
+   has classified a row. Geometry comes from sidebar.js; this file holds the look. */
+
+:root {
+  --obw-box: color-mix(in srgb, var(--sidebar-foreground) 11%, transparent);
+  /* Connectors share the project boxes' border color, so lines and edges read as one. */
+  --obw-line: var(--obw-box);
+  --obw-group-box: color-mix(in srgb, var(--sidebar-foreground) 7%, transparent);
+  --obw-group-fill: color-mix(in srgb, var(--sidebar-foreground) 2.5%, transparent);
+  --obw-stripe: color-mix(in srgb, var(--sidebar-foreground) 3%, transparent);
+  --obw-separator: color-mix(in srgb, var(--sidebar-foreground) 12%, transparent);
+}
+
+/* --- Rows ----------------------------------------------------------------------------- */
+
+/* Rows are clicked, not read: quick clicks on a title should not select its text. Editable
+   fields inside them (the inline rename input) keep selection. */
+[data-worktree-sidebar] [data-worktree-virtual-row] {
+  user-select: none;
+}
+
+[data-worktree-sidebar] [data-worktree-virtual-row] :is(input, textarea, [contenteditable='true']) {
+  user-select: text;
+}
+
+/* Group and project headers sit inside their box, the icon one step in. Orca's hover, drag and
+   reveal states paint the header element, so they stay inside the box too. */
+[data-obw-head] > :first-child {
+  width: auto;
+  margin-left: var(--obw-inner-left);
+  margin-right: var(--obw-inner-right);
+  padding-left: var(--obw-inner-pad) !important;
+  /* Orca's `transition-all` would animate these insets, and the script would measure the icon
+     mid-animation: keep the transitions on paint properties only. */
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform, scale;
+  /* The box already frames the header: drop the ring Orca adds on hover and drag, which would
+     draw a second edge right inside it, and keep the fill. */
+  --tw-ring-color: transparent;
+}
+
+/* Worktrees under a project: indented so their status icon meets the connector, and kept
+   inside the project box on the right. The row's first child is the card (or, for a worktree
+   with child worktrees, the wrapper around the parent card and its children). */
+[data-obw-child] > :first-child {
+  margin-left: var(--obw-indent, 0px);
+  margin-right: var(--obw-card-right, 8px);
+}
+
+/* Rows that close a box: the gap to the next box. Orca re-measures these rows, so the rows
+   below move down by the same amount. */
+[data-obw-gap] {
+  padding-bottom: var(--obw-gap);
+}
+
+/* --- Boxes ------------------------------------------------------------------------------ */
+
+/* The layer that draws boxes, stripes and connectors, under the rows. */
+[data-obw-overlay] {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+[data-obw-overlay] > div {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* A box around each group and each project. The header row draws the top of its box (so the
+   edge stays on the header when Orca makes it sticky) and the overlay draws the rest, from the
+   header down; a collapsed box is the header's alone. */
+[data-obw-cap]::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  box-sizing: border-box;
+  left: var(--obw-cap-left);
+  right: var(--obw-cap-right);
+  top: var(--obw-cap-top);
+  bottom: var(--obw-cap-bottom, 0px);
+  border: 1px solid var(--obw-box);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  /* Follows the header's content while Orca animates it into place (see animatedShift). */
+  translate: 0 var(--obw-shift, 0px);
+}
+
+[data-obw-cap='group']::before {
+  border-color: var(--obw-group-box);
+  background: var(--obw-group-fill);
+  border-radius: 10px 10px 0 0;
+}
+
+/* Group and project titles keep 4px above them (Orca drops its `pt-1` from a pinned group
+   header) and 4px below them to the separator line. Pinned, the row grows by those 4px so its
+   opaque background reaches the line. The script sizes the rows in Orca's virtualizer to match. */
+[data-obw-cap] {
+  padding-top: 4px !important;
+}
+
+[data-obw-cap][data-obw-stuck] {
+  padding-bottom: 4px;
+}
+
+/* A collapsed box (or a project without worktrees): its header's cap is the whole box. */
+[data-obw-cap][data-obw-collapsed]::before {
+  border-bottom: 1px solid var(--obw-box);
+  border-radius: 8px;
+}
+
+[data-obw-cap='group'][data-obw-collapsed]::before {
+  border-bottom-color: var(--obw-group-box);
+  border-radius: 10px;
+}
+
+[data-obw-overlay] > [data-obw-kind='group'] {
+  border: 1px solid var(--obw-group-box);
+  border-top: 0;
+  background: var(--obw-group-fill);
+  border-radius: 0 0 10px 10px;
+}
+
+[data-obw-overlay] > [data-obw-kind='project'] {
+  border: 1px solid var(--obw-box);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+
+/* Every other worktree in a project gets a faint band. */
+[data-obw-overlay] > [data-obw-kind='stripe'] {
+  background: var(--obw-stripe);
+}
+
+/* A line under each open group's or project's title, across its box; it stays when Orca pins a
+   group header to the top while its rows scroll beneath it. A collapsed box has nothing to set
+   apart. */
+[data-obw-cap]:not([data-obw-collapsed])::after,
+[data-obw-stuck]::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  left: var(--obw-cap-left, 0);
+  right: var(--obw-cap-right, 0);
+  /* 4px below the title (the row ends at the title's bottom; pinned, it already includes them). */
+  bottom: -4px;
+  height: 1px;
+  background: var(--obw-separator);
+  translate: 0 var(--obw-shift, 0px);
+}
+
+[data-obw-cap][data-obw-stuck]::after,
+[data-obw-stuck]::after {
+  bottom: 0;
+}
+
+/* --- Connectors ------------------------------------------------------------------------- */
+
+/* A trunk under the project icon, and an elbow into each worktree. */
+[data-obw-overlay] > [data-obw-kind='trunk'] {
+  border-left: 1px solid var(--obw-line);
+}
+
+[data-obw-overlay] > [data-obw-kind='elbow'] {
+  border-left: 1px solid var(--obw-line);
+  border-bottom: 1px solid var(--obw-line);
+}
+
+/* --- Status chip ------------------------------------------------------------------------ */
+
+[data-obw-status]::after {
+  content: attr(data-obw-status);
+  flex: none;
+  /* Right-aligned on the title row... */
+  margin-left: auto;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  padding: 0 6px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: var(--obw-status, var(--muted-foreground));
+  background: color-mix(in srgb, var(--obw-status, var(--muted-foreground)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--obw-status, var(--muted-foreground)) 30%, transparent);
+}
+
+/* ...unless the row already pushes its icons right (`ml-auto`): the chip follows them, or the
+   two auto margins would split the space and strand the icons mid-row. */
+[data-obw-status]:has(> .ml-auto)::after {
+  margin-left: 0;
+}
+
+/* A child worktree's card sits inside its parent's, which pads its right side by 6px: undo it
+   so every chip lines up on the same right edge. */
+[data-worktree-lineage-children] [data-obw-status]::after {
+  margin-right: -6px;
+}
+
+/* Orca's status palette (the tone it uses for each color id), light then dark. */
+[data-obw-status-color='blue'] { --obw-status: #2563eb; }
+[data-obw-status-color='sky'] { --obw-status: #0284c7; }
+[data-obw-status-color='violet'] { --obw-status: #7c3aed; }
+[data-obw-status-color='amber'] { --obw-status: #b45309; }
+[data-obw-status-color='emerald'] { --obw-status: #047857; }
+[data-obw-status-color='rose'] { --obw-status: #e11d48; }
+[data-obw-status-color='zinc'] { --obw-status: #52525b; }
+.dark [data-obw-status-color='blue'] { --obw-status: #93c5fd; }
+.dark [data-obw-status-color='sky'] { --obw-status: #7dd3fc; }
+.dark [data-obw-status-color='violet'] { --obw-status: #c4b5fd; }
+.dark [data-obw-status-color='amber'] { --obw-status: #fde68a; }
+.dark [data-obw-status-color='emerald'] { --obw-status: #a7f3d0; }
+.dark [data-obw-status-color='rose'] { --obw-status: #fda4af; }
+.dark [data-obw-status-color='zinc'] { --obw-status: #d4d4d8; }
+[data-obw-status-color='conductor-done'] { --obw-status: #c7a594; }
+[data-obw-status-color='conductor-review'] { --obw-status: #16a34a; }
+[data-obw-status-color='conductor-progress'] { --obw-status: #d4a300; }
