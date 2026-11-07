@@ -44,6 +44,16 @@ async function listTargets() {
   }
 }
 
+/** Resolves once nothing answers on the inspector port (or after `timeoutMs`). */
+export async function waitInspectorClosed(timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!(await listTargets())) return true
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  return false
+}
+
 /** The main process inspector's WebSocket URL, opening the inspector first if needed. */
 export async function openInspector() {
   let targets = await listTargets()
@@ -79,6 +89,12 @@ export async function connect(url) {
     pending.delete(msg.id)
     if (msg.error) entry.reject(new Error(msg.error.message))
     else entry.resolve(msg.result)
+  })
+  // The inspector can close under a request (a previous command closing it): fail what is
+  // pending, or the caller would wait on it forever and Node would exit silently.
+  ws.addEventListener('close', () => {
+    for (const entry of pending.values()) entry.reject(new Error('the inspector closed before answering'))
+    pending.clear()
   })
   return {
     send(method, params = {}) {

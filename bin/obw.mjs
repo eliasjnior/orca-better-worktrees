@@ -2,7 +2,7 @@
 // orca-better-worktrees: restyles Orca's left sidebar in the running app.
 import { readFile, writeFile } from 'node:fs/promises'
 import * as agent from '../src/agent.mjs'
-import { evaluateInMain } from '../src/inspector.mjs'
+import { evaluateInMain, waitInspectorClosed } from '../src/inspector.mjs'
 import {
   applyExpression,
   buildPayload,
@@ -32,8 +32,11 @@ Options:
                         (it is closed by default: while open, any local process can run code in Orca)
 `
 
+// Returns once the port is closed, so a command run right after opens a fresh inspector
+// instead of connecting to this one as it goes away.
 async function closeInspector() {
   await evaluateInMain(closeInspectorExpression())
+  await waitInspectorClosed()
 }
 
 async function main(argv) {

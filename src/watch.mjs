@@ -1,6 +1,6 @@
 // `obw watch`: applies the sidebar changes to every Orca that starts, for as long as it runs.
 // The LaunchAgent (agent.mjs) keeps it running from login.
-import { evaluateInMain, findOrcaMainPid, processAgeSeconds } from './inspector.mjs'
+import { evaluateInMain, findOrcaMainPid, processAgeSeconds, waitInspectorClosed } from './inspector.mjs'
 import { applyExpression, buildPayload, closeInspectorExpression } from './main-agent.mjs'
 
 // Orca's main process sets up its inspector signal handler as it starts; give it time before
@@ -45,6 +45,7 @@ export async function watch() {
         const payload = await buildPayload()
         const { injected } = await evaluateInMain(applyExpression(payload))
         await evaluateInMain(closeInspectorExpression())
+        await waitInspectorClosed()
         log(`applied to Orca (pid ${pid}, ${injected ? 'window open' : 'on its first window'})`)
         appliedPid = pid
         attempts = 0
