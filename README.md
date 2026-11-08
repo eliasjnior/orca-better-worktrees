@@ -29,34 +29,103 @@ expands the group's projects:
   <img src="docs/screenshots/group-header.png" alt="A group header with its title over a separator line, and its hover actions: collapse the group's projects, collapse the group, and more actions." width="420">
 </p>
 
-## How it reaches the sidebar
+This is not an Orca plugin. Orca's plugin API cannot reach the left sidebar (plugins add
+right-sidebar panels, themes, commands and the like), so a small command-line tool, `obw`,
+injects the styles and script into the Orca that is running. Nothing in `Orca.app` is
+modified, so Orca updates do not undo it, and removing it leaves Orca as it was.
 
-Orca's plugin API cannot reach the left sidebar (plugins contribute right-sidebar panels,
-themes, commands and the like), so this injects CSS and JavaScript into the running app instead.
-Nothing in `Orca.app` is modified, and app updates do not undo it.
+## Install
 
-## Use
+You need:
+
+- macOS, with Orca's desktop app in `/Applications/Orca.app` (tested on Orca 1.4.251);
+- [Node.js](https://nodejs.org) 22 or later (`node --version` to check);
+- `git`.
+
+There is nothing to `npm install`: `obw` has no dependencies.
+
+**1. Get the code** somewhere you will keep it. The background agent (step 3) runs the code
+from this folder, so do not delete or move it afterwards.
 
 ```sh
-node bin/obw.mjs apply    # restyle the sidebar of the running Orca
-node bin/obw.mjs remove   # put it back as it was
-node bin/obw.mjs stats    # redraws since apply, and their cost
+git clone https://github.com/eliasjnior/orca-better-worktrees.git ~/orca-better-worktrees
+cd ~/orca-better-worktrees
 ```
 
-The injection lives in the running process: it survives window reloads, not an Orca restart.
-To have every Orca start restyled, install the LaunchAgent:
+**2. Try it once.** With Orca open:
 
 ```sh
-node bin/obw.mjs agent install     # runs `obw watch` from login
-node bin/obw.mjs agent status
-node bin/obw.mjs agent uninstall
+node bin/obw.mjs apply
 ```
 
-`obw watch` stays running (launchd restarts it if it stops). While the Orca it applied to is
-alive it only checks that pid every 5 s, without spawning anything; when a new Orca starts, it
-waits 3 s for its main process to set up, applies, and closes the inspector. It logs to
-`~/Library/Logs/orca-better-worktrees.log`. The agent runs the Node binary `agent install` ran
-with, by its real path: install again after removing that Node version.
+The sidebar changes right away. This lasts until Orca quits; `node bin/obw.mjs remove` undoes
+it sooner.
+
+**3. Keep it on every time Orca opens:**
+
+```sh
+node bin/obw.mjs agent install
+```
+
+This installs a LaunchAgent: a small background process that macOS starts at login. Whenever
+Orca opens, it applies the changes within a few seconds. You do not need to run `apply` again.
+
+**4. Check that it works:**
+
+```sh
+node bin/obw.mjs agent status                     # shows "state": "running"
+tail ~/Library/Logs/orca-better-worktrees.log     # shows "applied to Orca (pid …)"
+```
+
+Quit and reopen Orca: a new `applied to Orca` line appears in the log, and the sidebar is
+restyled again.
+
+## Update
+
+```sh
+cd ~/orca-better-worktrees
+git pull
+node bin/obw.mjs agent install
+```
+
+Installing again restarts the agent with the new code, and it applies the new version to the
+Orca that is open.
+
+## Uninstall
+
+```sh
+cd ~/orca-better-worktrees
+node bin/obw.mjs agent uninstall   # stops applying when Orca opens
+node bin/obw.mjs remove            # undoes it in the open Orca (or just restart Orca)
+```
+
+Then delete the folder, and `~/Library/Logs/orca-better-worktrees.log` if you like.
+
+## Troubleshooting
+
+- **The sidebar did not change.** Check that Orca is open, then run
+  `node bin/obw.mjs stats`. It reports `"errors"` and the `"lastError"` the script hit, if any.
+- **`the inspector on 127.0.0.1:9229 belongs to pid …`.** Another program is using port
+  9229 (often a Node.js process started with `--inspect`). `obw` refuses to run code there;
+  stop that program and try again.
+- **It stopped applying after a Node.js upgrade.** The agent runs the exact Node.js it was
+  installed with. If a version manager (mise, nvm, fnm) removed that version, run
+  `node bin/obw.mjs agent install` again.
+- **The sidebar looks broken after an Orca update.** Orca may have changed the sidebar's
+  markup this relies on. Run `node bin/obw.mjs remove`, and open an issue with your Orca
+  version.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `node bin/obw.mjs apply` | Restyles the sidebar of the Orca that is open |
+| `node bin/obw.mjs remove` | Undoes it in the Orca that is open |
+| `node bin/obw.mjs stats` | Redraws since `apply`, their cost, and the last error |
+| `node bin/obw.mjs agent install` | Installs (or restarts) the agent that applies it whenever Orca opens |
+| `node bin/obw.mjs agent status` | Whether the agent is installed and running |
+| `node bin/obw.mjs agent uninstall` | Removes the agent |
+| `node bin/obw.mjs watch` | What the agent runs: waits for Orca and applies to every one that starts |
 
 ## How it works
 
@@ -84,7 +153,12 @@ The sidebar is a virtualized list of absolutely positioned rows, so the script:
 
 It only adds attributes and its own overlay. It redraws once per frame at most, after sidebar
 mutations, plus a 1.5 s poll for status changes that do not touch the DOM. An update without
-geometry changes costs about 0.6 ms with 25 rendered rows.
+geometry changes costs about 0.2 ms with 20 rendered rows.
+
+The agent runs `obw watch` under launchd, which restarts it if it stops. While the Orca it
+applied to is alive, it only checks that process every 5 s, without spawning anything; when a
+new Orca starts, it waits 3 s for its main process to set up, applies, and closes the
+inspector.
 
 ## Develop
 
