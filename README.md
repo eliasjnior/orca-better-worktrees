@@ -3,14 +3,33 @@
 Restyles [Orca](https://github.com/stablyai/orca)'s left sidebar while it runs:
 
 - **Nested worktrees.** Worktrees move one step right of their project, with a connector from
-  the project icon down into each one.
-- **Status chip.** The workspace status you set with *Move to Status* shows next to the
-  worktree's name, in Orca's own status colors.
-- **Boxes per project.** Each expanded project group, and each project with worktrees, gets a
-  box around it.
+  under the project's title into each one (and from a worktree into its child worktrees).
+- **Status chip.** The workspace status you set with *Move to Status* shows on the worktree's
+  title row, right-aligned, in Orca's own status colors.
+- **A box per group and project.** Every group and project gets a box, with a line under its
+  title; a collapsed one (or a project without worktrees) gets a box around its title alone,
+  and closes along with Orca's collapse animation. Every other worktree sits on a faint band.
+- **Workspace board.** Each worktree card on the board gets an edge.
 - **Collapse a group's projects.** Next to each open group's actions, a button collapses its
   open projects, or expands them all when none is open (Orca's own button does this for every
   project).
+
+## Screenshots
+
+Project and worktree names below are made up.
+
+<p>
+  <img src="docs/screenshots/sidebar.png" alt="Orca's left sidebar restyled: collapsed groups as rounded boxes, one open group whose projects each sit in their own box, worktrees joined to their project by a connector, every other worktree on a faint band, and a status chip (In progress, In review, Todo, Done, Blocked) on each." width="420">
+</p>
+
+An open group's header, with its actions shown as on hover; the first of them collapses or
+expands the group's projects:
+
+<p>
+  <img src="docs/screenshots/group-header.png" alt="A group header with its title over a separator line, and its hover actions: collapse the group's projects, collapse the group, and more actions." width="420">
+</p>
+
+## How it reaches the sidebar
 
 Orca's plugin API cannot reach the left sidebar (plugins contribute right-sidebar panels,
 themes, commands and the like), so this injects CSS and JavaScript into the running app instead.
