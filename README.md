@@ -8,6 +8,9 @@ Restyles [Orca](https://github.com/stablyai/orca)'s left sidebar while it runs:
   worktree's name, in Orca's own status colors.
 - **Boxes per project.** Each expanded project group, and each project with worktrees, gets a
   box around it.
+- **Collapse a group's projects.** Next to each open group's actions, a button collapses its
+  open projects, or expands them all when none is open (Orca's own button does this for every
+  project).
 
 Orca's plugin API cannot reach the left sidebar (plugins contribute right-sidebar panels,
 themes, commands and the like), so this injects CSS and JavaScript into the running app instead.

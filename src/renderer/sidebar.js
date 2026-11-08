@@ -140,6 +140,7 @@
     }
     step('statuses', () => markStatuses(container))
     step('stuck', () => markStuck())
+    if (model) step('group toggles', () => markGroupToggles(model))
   }
 
   /** Runs one step of an update; a failure is recorded (see `obw stats`) and logged once. */
@@ -690,6 +691,100 @@
     resizeKeys(instance, changed)
   }
 
+  // --- Collapse or expand a group's projects ------------------------------------------------
+  //
+  // Next to an open group's actions, a button like the sidebar's "Collapse all projects", for
+  // that group's projects only. It goes through Orca's own toggle (`toggleGroup`, the one a
+  // project header's click uses), so state, persistence and animation stay Orca's.
+
+  const LUCIDE = (paths) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-3.5" aria-hidden="true">${paths}</svg>`
+  // The icons Orca's own collapse-all button uses (lucide chevrons-down-up / chevrons-up-down).
+  const GROUP_TOGGLE = {
+    collapse: { label: 'Collapse all projects in this group', icon: LUCIDE('<path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/>') },
+    expand: { label: 'Expand all projects in this group', icon: LUCIDE('<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>') }
+  }
+
+  /** The sidebar component's props: the row model, the collapsed set and `toggleGroup`. */
+  function sidebarProps() {
+    const sidebar = document.querySelector('[data-worktree-sidebar]')
+    for (let fiber = sidebar && currentFiber(sidebar); fiber; fiber = fiber.return) {
+      const props = fiber.memoizedProps
+      if (props && typeof props.toggleGroup === 'function' && props.collapsedGroups instanceof Set) return props
+    }
+    return null
+  }
+
+  /**
+   * A group's projects that have worktrees, and which of them are open. Projects without
+   * worktrees are left out: there is nothing to collapse, and they would keep the group
+   * reading as open.
+   */
+  function groupProjects(props, groupId) {
+    const keys = props.rows
+      .filter((r) => r?.type === 'header' && r.repo?.projectGroupId === groupId && (r.count ?? 0) > 0)
+      .map((r) => r.key)
+    return { keys, open: keys.filter((k) => !props.collapsedGroups.has(k)) }
+  }
+
+  function toggleGroupProjects(groupId) {
+    const props = sidebarProps()
+    if (!props) return
+    const { keys, open } = groupProjects(props, groupId)
+    // Any open project: collapse the open ones. All collapsed: expand them all.
+    for (const key of open.length > 0 ? open : keys) props.toggleGroup(key)
+    schedule()
+  }
+
+  function createGroupToggle(actions, groupId) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.setAttribute('data-obw-group-toggle', '')
+    // Orca's own header action buttons' look (ghost, icon-xs), taken from the one next to it.
+    const sibling = actions.querySelector('button')
+    button.className = sibling?.className ?? 'inline-flex size-5 items-center justify-center rounded-md'
+    // The header toggles the group on click, Enter and Space, and starts a drag on pointer down:
+    // keep this button's events away from it.
+    for (const type of ['pointerdown', 'mousedown', 'dblclick']) button.addEventListener(type, (e) => e.stopPropagation())
+    button.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') e.stopPropagation()
+    })
+    button.addEventListener('click', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      toggleGroupProjects(groupId)
+    })
+    actions.prepend(button)
+    return button
+  }
+
+  function markGroupToggles({ groups }) {
+    const props = sidebarProps()
+    for (const group of groups) {
+      const header = group.header.el
+      const actions = header.querySelector('[data-repo-header-actions]')
+      const groupId = header.firstElementChild?.dataset.projectGroupHeaderId
+      let button = actions?.querySelector(':scope > [data-obw-group-toggle]')
+      const state = props && groupId ? groupProjects(props, groupId) : null
+      if (!actions || group.collapsed || !state || state.keys.length === 0) {
+        button?.remove()
+        continue
+      }
+      if (!button || button.dataset.obwGroupId !== groupId) {
+        button?.remove()
+        button = createGroupToggle(actions, groupId)
+        button.dataset.obwGroupId = groupId
+      }
+      const mode = state.open.length > 0 ? 'collapse' : 'expand'
+      if (button.dataset.obwMode !== mode) {
+        button.dataset.obwMode = mode
+        button.innerHTML = GROUP_TOGGLE[mode].icon
+        button.setAttribute('aria-label', GROUP_TOGGLE[mode].label)
+        button.title = GROUP_TOGGLE[mode].label
+      }
+    }
+  }
+
   // --- Status chip -------------------------------------------------------------------------
 
   function reactKeys(el) {
@@ -826,7 +921,7 @@
       if (stuckFrame) cancelAnimationFrame(stuckFrame)
       restoreVirtualizer()
       style.remove()
-      for (const el of document.querySelectorAll('[data-obw-overlay]')) el.remove()
+      for (const el of document.querySelectorAll('[data-obw-overlay], [data-obw-group-toggle]')) el.remove()
       for (const name of ATTRS) {
         for (const el of document.querySelectorAll(`[${name}]`)) el.removeAttribute(name)
       }
