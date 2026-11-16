@@ -392,29 +392,47 @@
       if (!drawn || children.length === 0) continue
       const { left, bottom, contentTop } = drawn
 
-      // Every other worktree gets a faint band, so neighbours read apart. Each band reaches
-      // halfway into the gaps around its row; the first starts under the title's line, and the
-      // last follows the box's rounded corners.
-      children.forEach((child, i) => {
+      const rows = lineage(children)
+
+      // Every other worktree gets a faint band, so neighbours read apart. A worktree's child
+      // worktrees share its band. Each band reaches halfway into the gaps around its rows; the
+      // first starts under the title's line, and the last follows the box's rounded corners.
+      const units = []
+      for (const row of rows) {
+        if (row.parent && units.length > 0) units.at(-1).last = row.child
+        else units.push({ first: row.child, last: row.child })
+      }
+      units.forEach((unit, i) => {
         if (i % 2 !== 0) return
-        const bandTop = i === 0 ? contentTop : Math.round((contentBottom(children[i - 1]) + child.top) / 2)
-        const isLast = i === children.length - 1
-        const bandBottom = isLast ? bottom - 1 : Math.round((contentBottom(child) + children[i + 1].top) / 2)
+        const bandTop = i === 0 ? contentTop : Math.round((contentBottom(units[i - 1].last) + unit.first.top) / 2)
+        const isLast = i === units.length - 1
+        const bandBottom = isLast ? bottom - 1 : Math.round((contentBottom(unit.last) + units[i + 1].first.top) / 2)
         part('stripe', left + 1, bandTop, drawn.width - 2, bandBottom - bandTop, isLast ? 'border-radius:0 0 7px 7px' : '')
       })
 
       // The trunk hangs from the title's line, under the project icon.
       const trunkX = left + STEP + ICON_SIZE / 2
-      const slots = []
-      for (const child of children) {
-        const slot = child.el.querySelector('[data-worktree-card-status-slot]')
-        slots.push(slot)
+      for (const row of rows) {
+        if (row.parent) {
+          // A child worktree's row takes its family's indent, which keeps Orca's own nesting and
+          // lines up the frame Orca draws around an active family, split across these rows.
+          indentsMoved = setIndent(row.child.el, indentOf(row.root.child.el)) || indentsMoved
+          continue
+        }
         // Rows without a status icon (Orca's notices, such as discovered worktrees it hides)
         // line their left edge up with where the worktrees' icons start, clear of the trunk.
-        const anchor = slot ?? child.el.firstElementChild
-        if (anchor) indentsMoved = alignIndent(child.el, anchor, origin, trunkX + ELBOW_REACH) || indentsMoved
+        const anchor = row.slot ?? row.child.el.firstElementChild
+        if (anchor) indentsMoved = alignIndent(row.child.el, anchor, origin, trunkX + ELBOW_REACH) || indentsMoved
       }
-      connect(part, origin, trunkX, contentTop, slots)
+      connect(part, origin, trunkX, contentTop, rows.filter((row) => !row.parent).map((row) => row.slot))
+
+      // Child worktrees hang from their parent's status icon.
+      for (const parent of rows) {
+        const nested = rows.filter((row) => row.parent === parent).map((row) => row.slot)
+        if (!parent.slot || nested.length === 0) continue
+        const p = parent.slot.getBoundingClientRect()
+        connect(part, origin, p.left - origin.left + p.width / 2, p.bottom - origin.top - 1, nested)
+      }
 
       // A worktree with child worktrees lists them inside its card: connect those to it too.
       for (const child of children) {
@@ -464,12 +482,47 @@
    * so this measures and corrects the indent. Returns whether it changed.
    */
   function alignIndent(rowEl, anchor, origin, targetLeft) {
-    const current = parseFloat(rowEl.style.getPropertyValue('--obw-indent')) || 0
+    const current = indentOf(rowEl)
     const anchorLeft = anchor.getBoundingClientRect().left - origin.left
-    const next = Math.max(0, Math.round(current + targetLeft - anchorLeft))
-    if (Math.abs(next - current) < 1) return false
+    return setIndent(rowEl, Math.max(0, Math.round(current + targetLeft - anchorLeft)))
+  }
+
+  function indentOf(rowEl) {
+    return parseFloat(rowEl.style.getPropertyValue('--obw-indent')) || 0
+  }
+
+  /** Sets a row's indent. Returns whether it changed. */
+  function setIndent(rowEl, next) {
+    if (Math.abs(next - indentOf(rowEl)) < 1) return false
     rowEl.style.setProperty('--obw-indent', `${next}px`)
     return true
+  }
+
+  /**
+   * The worktree rows under a project, each with its status slot and, for a child worktree,
+   * its parent's and its family root's entries. Orca lists a worktree's child worktrees in rows
+   * of their own right under it, nested by the left padding on their option (deeper rows pad
+   * more), so a row's parent is the closest row above it that pads less. Rows without an option
+   * (Orca's notices) belong to no family.
+   */
+  function lineage(children) {
+    const rows = []
+    const stack = []
+    for (const child of children) {
+      const option = child.el.querySelector('[role="option"]')
+      const row = { child, slot: child.el.querySelector('[data-worktree-card-status-slot]'), parent: null, root: null }
+      rows.push(row)
+      if (!option) {
+        stack.length = 0
+        continue
+      }
+      row.depth = parseFloat(option.style.paddingLeft) || 0
+      while (stack.length > 0 && stack.at(-1).depth >= row.depth) stack.pop()
+      row.parent = stack.at(-1) ?? null
+      row.root = row.parent ? row.parent.root : row
+      stack.push(row)
+    }
+    return rows
   }
 
   /**
