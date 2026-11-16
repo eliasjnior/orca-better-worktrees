@@ -50,6 +50,14 @@
   margin-right: var(--obw-card-right, 8px);
 }
 
+/* The row Orca shows while it creates a worktree pads its sides (`px-2`), which worktree rows
+   don't: drop it so that card ends on the same right edge as the others. The script measures
+   the left side, so the indent takes up the difference there. */
+[data-obw-child] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
 /* Rows that close a box: the gap to the next box. Orca re-measures these rows, so the rows
    below move down by the same amount. */
 [data-obw-gap] {
