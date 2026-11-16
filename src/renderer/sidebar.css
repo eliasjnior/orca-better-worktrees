@@ -43,6 +43,9 @@
    inside the project box on the right. The row's first child is the card (or, for a worktree
    with child worktrees, the wrapper around the parent card and its children). */
 [data-obw-child] > :first-child {
+  /* Some rows' content is `w-full` (the card Orca shows while it creates a worktree): at a
+     fixed 100% width the margins below would push it past the box's right edge. */
+  width: auto;
   margin-left: var(--obw-indent, 0px);
   margin-right: var(--obw-card-right, 8px);
 }
